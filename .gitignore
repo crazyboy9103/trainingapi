@@ -1,0 +1,6 @@
+.python-version
+.venv
+
+benchmark_pillow.py
+pillow_simd.txt
+pillow.txt
