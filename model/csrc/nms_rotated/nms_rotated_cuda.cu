@@ -3,13 +3,8 @@
 #include <ATen/cuda/CUDAContext.h>
 #include <c10/cuda/CUDAGuard.h>
 #include <ATen/cuda/CUDAApplyUtils.cuh>
-#ifdef WITH_CUDA
-#include "../box_iou_rotated/box_iou_rotated_utils.h"
-#endif
-// TODO avoid this when pytorch supports "same directory" hipification
-#ifdef WITH_HIP
+
 #include "box_iou_rotated/box_iou_rotated_utils.h"
-#endif
 
 using namespace detectron2;
 
@@ -29,7 +24,7 @@ __global__ void nms_rotated_cuda_kernel(
   const int row_start = blockIdx.y;
   const int col_start = blockIdx.x;
 
-  // if (row_start > col_start) return;
+  if (row_start > col_start) return;
 
   const int row_size =
       min(n_boxes - row_start * threadsPerBlock, threadsPerBlock);

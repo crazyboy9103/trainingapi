@@ -9,10 +9,8 @@ from torch.utils.cpp_extension import CUDA_HOME, CppExtension, CUDAExtension
 
 HAS_CUDA = torch.cuda.is_available() and CUDA_HOME is not None
 FORCE_CUDA = os.getenv("FORCE_CUDA", "0") == "1"
-# torch_ver = [int(x) for x in torch.__version__.split(".")[:2]]
-# assert torch_ver >= [1, 8], "Requires PyTorch >= 1.8"
 
-library_name = "detectron2"
+LIBRARY_NAME = "detectron2"
 
 def get_extensions():
     this_dir = path.dirname(path.abspath(__file__))
@@ -48,17 +46,11 @@ def get_extensions():
         if nvcc_flags_env != "":
             extra_compile_args["nvcc"].extend(nvcc_flags_env.split(" "))
 
-        # if torch_ver < [1, 7]:
-        #     # supported by https://github.com/pytorch/pytorch/pull/43931
-        #     CC = os.environ.get("CC", None)
-        #     if CC is not None:
-        #         extra_compile_args["nvcc"].append("-ccbin={}".format(CC))
-
     include_dirs = [this_dir]
 
     ext_modules = [
         extension(
-            f"{library_name}._C",
+            f"{LIBRARY_NAME}._C",
             sources,
             include_dirs=include_dirs,
             define_macros=define_macros,
@@ -69,7 +61,7 @@ def get_extensions():
     return ext_modules
 
 setup(
-    name=library_name, 
+    name=LIBRARY_NAME, 
     ext_modules=get_extensions(),
     cmdclass={"build_ext": torch.utils.cpp_extension.BuildExtension},
 )

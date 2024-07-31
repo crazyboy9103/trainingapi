@@ -1,5 +1,5 @@
 // Copyright (c) Facebook, Inc. and its affiliates.
-#include "../box_iou_rotated/box_iou_rotated_utils.h"
+#include "box_iou_rotated/box_iou_rotated_utils.h"
 #include "nms_rotated.h"
 
 namespace detectron2 {
