@@ -5,7 +5,7 @@ import torch
 from torchvision import ops
 
 from trainingapi.data.structures.boxes import Boxes
-
+from trainingapi.model.layers.box_iou_rotated import box_iou_rotated
 
 @unique
 class RotatedBoxMode(IntEnum):
@@ -87,19 +87,27 @@ class RotatedBoxes:
     def clip_to_bounds(self, bounds: Tuple[int, int] = None) -> "RotatedBoxes":
         if bounds is None:
             assert self.bounds is not None, "bounds must be provided if self.bounds is not set"
-            return self.clip(self.bounds)
+            return self.clip_to_bounds(self.bounds)
         
-        boxes = self.convert_mode(BoxMode.XYXY_ABS).boxes
+        boxes = self.convert_mode(RotatedBoxMode.XYWHA_ABS).boxes
         boxes = ops.clip_boxes_to_image(boxes, bounds)
-        return Boxes(boxes, BoxMode.XYXY_ABS, self.bounds).convert_mode(self.mode) 
+        return Boxes(boxes, RotatedBoxMode.XYWHA_ABS, self.bounds).convert_mode(self.mode) 
     
-    def scale(self, scale_x: float, scale_y: float) -> "Boxes":
-        self.boxes[:, 0::2] *= scale_x
-        self.boxes[:, 1::2] *= scale_y
+    def scale(self, scale_x: float, scale_y: float) -> "RotatedBoxes":
+        self.boxes[:, 0] *= scale_x
+        self.boxes[:, 1] *= scale_y
+        theta = self.boxes[:, 4] * torch.pi / 180.0
+        c = torch.cos(theta)
+        s = torch.sin(theta)
+        
+        scale_factor = torch.sqrt((scale_x * c) ** 2 + (scale_y * s) ** 2)
+        self.boxes[:, 2] *= scale_factor
+        self.boxes[:, 3] *= scale_factor
+        self.boxes[:, 4] = torch.atan2(scale_x * s, scale_y * c) * 180 / torch.pi
         return self
     
-    def iou(self, other: "Boxes") -> torch.Tensor:
-        return ops.box_iou(self.convert_mode(BoxMode.XYXY_ABS).boxes, other.convert_mode(BoxMode.XYXY_ABS).boxes)
+    def iou(self, other: "RotatedBoxes") -> torch.Tensor:
+        return box_iou_rotated(self.boxes, other.boxes)
     
     def area(self) -> torch.Tensor:
         area = torch.prod(self.boxes[:, 2:4], dim=1)

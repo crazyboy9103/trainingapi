@@ -85,10 +85,10 @@ class Boxes:
     def to(self, device: torch.device) -> "Boxes":
         return Boxes(self.boxes.to(device), self.mode, self.bounds)
     
-    def clip_to_bounds(self, bounds: Tuple[int, int] = None) -> "Boxes":
+    def clip_to_bounds(self, bounds: Tuple[int, int]) -> "Boxes":
         if bounds is None:
             assert self.bounds is not None, "bounds must be provided if self.bounds is not set"
-            return self.clip(self.bounds)
+            return self.clip_to_bounds(self.bounds)
         
         boxes = self.convert_mode(BoxMode.XYXY_ABS).boxes
         boxes = ops.clip_boxes_to_image(boxes, bounds)
