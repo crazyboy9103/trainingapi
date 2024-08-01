@@ -4,3 +4,10 @@
 benchmark_pillow.py
 pillow_simd.txt
 pillow.txt
+
+*.egg-info/
+build/
+*.pyd
+.pytest_cache
+
+__pycache__/
