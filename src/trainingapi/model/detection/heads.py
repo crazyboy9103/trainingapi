@@ -110,7 +110,6 @@ class RotatedFasterRCNNRoIHead(nn.Module):
         floating_point_types = (torch.float, torch.double, torch.half)
         
         data_types = {
-            "hboxes": floating_point_types,
             "oboxes": floating_point_types,
             "labels": (torch.int64,)
         }
