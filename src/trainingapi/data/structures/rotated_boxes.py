@@ -106,12 +106,12 @@ class RotatedBoxes:
         self.boxes[:, 4] = torch.atan2(scale_x * s, scale_y * c) * 180 / torch.pi
         return self
     
-    def iou(self, other: "RotatedBoxes") -> torch.Tensor:
-        return box_iou_rotated(self.boxes, other.boxes)
+    def iou(self, other: "RotatedBoxes", angle_aware: bool = False) -> torch.Tensor:
+        return box_iou_rotated(self.boxes, other.boxes, angle_aware=angle_aware)
     
     def area(self) -> torch.Tensor:
         area = torch.prod(self.boxes[:, 2:4], dim=1)
         return area
 
     def convert_mode(self, to_mode) -> "RotatedBoxes":
-        raise NotImplementedError("Unimplemented convert_mode for rotated boxes")
+        raise NotImplementedError("convert_mode is not implemented for rotated boxes")

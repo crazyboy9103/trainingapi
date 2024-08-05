@@ -1,4 +1,5 @@
 from typing import Tuple, List
+import math
 
 import torch
 from torch import Tensor
@@ -150,7 +151,7 @@ class XYWHA_XYWHA_BoxCoder:
             pred_bboxes = pred_bboxes.reshape(box_sum, -1)
             
         concat_boxes = concat_boxes.to(pred_bboxes.dtype)
-        weights = self._make_weights_compatible(concat_boxes)
+        weights = self._make_weights_compatible_with(concat_boxes)
         pred_bboxes = self.decode_single(pred_bboxes, concat_boxes, weights, box_sum)
         return pred_bboxes
     
@@ -164,7 +165,7 @@ class XYWHA_XYWHA_BoxCoder:
     def decode_single(self, pred_bboxes: Tensor, bboxes: Tensor, weights: Tensor, box_sum: int) -> Tensor:
         if pred_bboxes.ndim == 3:
             assert pred_bboxes.size(1) == bboxes.size(1)
-        pred_bboxes = decode_oboxes(pred_bboxes, bboxes, weights, self.bbox_xform_clip)
+        pred_bboxes = decode_oboxes(pred_bboxes, bboxes, weights, math.log(1000.0 / 16))
         if box_sum > 0:
             pred_bboxes = pred_bboxes.reshape(box_sum, -1, 5)
         return pred_bboxes

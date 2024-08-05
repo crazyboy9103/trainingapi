@@ -8,11 +8,10 @@ from torchvision.ops import Conv2dNormActivation
 from torchvision.models.detection.image_list import ImageList
 from torchvision.models.detection import _utils as det_utils
 
-from ..layers import XYWHA_XYWHA_BoxCoder, RotatedAnchorGenerator
-from ..layers import batched_nms_rotated, remove_small_rotated_boxes
+from trainingapi.model.layers import XYWHA_XYWHA_BoxCoder, RotatedAnchorGenerator
+from trainingapi.model.layers import batched_nms_rotated, remove_small_rotated_boxes
 
-# RPN Heads
-class RPNHead(nn.Module):
+class RotatedRPNHead(nn.Module):
     """
     Adds a simple RPN Head with classification and regression heads
 
