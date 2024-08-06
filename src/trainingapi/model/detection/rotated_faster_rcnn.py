@@ -302,14 +302,3 @@ rotated_faster_rcnn_efficientnetb0_fpn = partial(builder, backbone_type = "effic
 rotated_faster_rcnn_efficientnetb1_fpn = partial(builder, backbone_type = "efficientnet_b1")
 rotated_faster_rcnn_efficientnetb2_fpn = partial(builder, backbone_type = "efficientnet_b2")
 rotated_faster_rcnn_efficientnetb3_fpn = partial(builder, backbone_type = "efficientnet_b3")
-
-    # pretrained,
-    # pretrained_backbone,
-    # num_classes,
-    # trainable_backbone_layers,
-    # backbone_type,
-    # returned_layers,
-    # freeze_bn = False, 
-    # anchor_sizes=((8, 16, 32, 64, 128,)) * 5,
-    # aspect_ratios=((0.5, 1.0, 2.0),) * 5,
-    # angles=((0, 60, 120, 180, 240, 300),) * 5,
