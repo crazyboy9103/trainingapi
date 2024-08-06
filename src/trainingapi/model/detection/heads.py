@@ -5,8 +5,8 @@ import torch.nn.functional as F
 from torch import nn, Tensor
 from torchvision.models.detection import _utils as det_utils
 
-from trainingapi.model.layers import XYWHA_XYWHA_BoxCoder
-from trainingapi.model.layers import box_iou_rotated, batched_nms_rotated, remove_small_rotated_boxes
+from trainingapi.model.ops import XYWHA_XYWHA_BoxCoder
+from trainingapi.model.ops import box_iou_rotated, batched_nms_rotated, remove_small_rotated_boxes
 
 class RotatedFasterRCNNRoIHead(nn.Module):
     def __init__(

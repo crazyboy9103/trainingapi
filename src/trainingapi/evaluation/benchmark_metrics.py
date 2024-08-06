@@ -5,7 +5,7 @@ from torch import Tensor
 from torchmetrics.metric import Metric
 from torchmetrics.utilities.prints import rank_zero_warn
 
-from trainingapi.model.layers.box_iou_rotated import box_iou_rotated
+from trainingapi.model.ops.box_iou_rotated import box_iou_rotated
 
 class RotatedMeanAveragePrecision(Metric):
     def __init__(self, iou_threshold: Union[float, List[float]] = 0.5, **kwargs):

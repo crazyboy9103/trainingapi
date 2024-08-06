@@ -5,7 +5,7 @@ import torch
 from torchvision import ops
 
 from trainingapi.data.structures.boxes import Boxes
-from trainingapi.model.layers.box_iou_rotated import box_iou_rotated
+from trainingapi.model.ops.box_iou_rotated import box_iou_rotated
 
 @unique
 class RotatedBoxMode(IntEnum):
@@ -89,7 +89,7 @@ class RotatedBoxes:
             assert self.bounds is not None, "bounds must be provided if self.bounds is not set"
             return self.clip_to_bounds(self.bounds)
         
-        boxes = self.convert_mode(RotatedBoxMode.XYWHA_ABS).boxes
+        boxes = self.boxes
         boxes = ops.clip_boxes_to_image(boxes, bounds)
         return Boxes(boxes, RotatedBoxMode.XYWHA_ABS, self.bounds).convert_mode(self.mode) 
     

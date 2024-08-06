@@ -1,67 +1,71 @@
 import pytest
 from torch import nn
+from trainingapi.model.detection.rotated_faster_rcnn import builder
 
-from trainingapi.model.detection.rotated_faster_rcnn import builder, get_weights, create_backbone, build_model, load_model_weights
-
-# Mocks for weights to be used in tests
-class MockWeights:
-    @staticmethod
-    def get_state_dict():
-        return {'layer1.weight': 'weights'}
-
-# Test builder function for different backbone configurations
-@pytest.mark.parametrize("backbone_type,expected_exception", [
-    ("resnet50", None),
-    ("resnet18", None),
-    ("mobilenetv3large", None),
-    ("efficientnet_b0", None),
-    ("efficientnet_b1", None),
-    ("efficientnet_b2", None),
-    ("efficientnet_b3", None),
-    ("unknown_type", ValueError)
-])
-def test_builder_backbone_type(mocker, backbone_type, expected_exception):
-    # Mock the internal methods called within the builder
-    mocker.patch('your_module_name.get_weights', return_value=(None, None))
-    mocker.patch('your_module_name.create_backbone', return_value=(nn.Module(), ['0', '1']))
-    mocker.patch('your_module_name.build_model', return_value=nn.Module())
-
-    # Set parameters
-    params = {
-        "pretrained": True,
-        "pretrained_backbone": False,
-        "num_classes": 10,
-        "trainable_backbone_layers": 3,
-        "freeze_bn": True,
-        "backbone_type": backbone_type,
-        "returned_layers": [1, 2, 3]
+# Parameters for testing
+backbone_types = ["resnet50", "resnet18", "mobilenetv3large", "efficientnet_b0", "efficientnet_b1", "efficientnet_b2", "efficientnet_b3", "unknown_type"]
+pretrained_flags = [True, False]
+pretrained_backbone_flags = [True, False]
+trainable_backbone_layers_options = [0, 3, 5]
+freeze_bn_options = [True, False]
+returned_layers_options = [
+    [1], 
+    [1, 2], 
+    [1, 2, 3], 
+    [1, 2, 3, 4]
+]
+num_classes = 10
+# Define anchor sizes, aspect ratios, and angles to match the number of returned layers
+configurations = [
+    {
+        'returned_layers': [1],
+        'anchor_sizes': [(32,), (64,)],
+        'aspect_ratios': [(0.5,), (1.0,)],
+        'angles': [(0,), (90,)]
+    },
+    {
+        'returned_layers': [1, 2],
+        'anchor_sizes': [(32,), (64,), (128,)],
+        'aspect_ratios': [(0.5,), (1.0,), (2.0,)],
+        'angles': [(0,), (90,), (180,)]
+    },
+    {
+        'returned_layers': [1, 2, 3],
+        'anchor_sizes': [(32,), (64,), (128,), (256,)],
+        'aspect_ratios': [(0.5,), (1.0,), (2.0,), (3.0,)],
+        'angles': [(0,), (90,), (180,), (270,)]
+    },
+    {
+        'returned_layers': [1, 2, 3, 4],
+        'anchor_sizes': [(32,), (64,), (128,), (256,), (512,)],
+        'aspect_ratios': [(0.5,), (1.0,), (2.0,), (3.0,), (4.0,)],
+        'angles': [(0,), (90,), (180,), (270,), (305,)]
     }
+]
 
-    # Test for expected exceptions
-    if expected_exception:
-        with pytest.raises(expected_exception):
-            builder(**params)
+# Parametrize the test function to cover multiple scenarios
+@pytest.mark.parametrize("backbone_type", backbone_types)
+@pytest.mark.parametrize("pretrained", pretrained_flags)
+@pytest.mark.parametrize("pretrained_backbone", pretrained_backbone_flags)
+@pytest.mark.parametrize("trainable_layers", trainable_backbone_layers_options)
+@pytest.mark.parametrize("freeze_bn", freeze_bn_options)
+@pytest.mark.parametrize("config", configurations)
+def test_builder_configurations(backbone_type, pretrained, pretrained_backbone, trainable_layers, freeze_bn, config):
+    returned_layers = config['returned_layers']
+    anchor_sizes = config['anchor_sizes']
+    aspect_ratios = config['aspect_ratios']
+    angles = config['angles']
+    
+    # Exception handling for unknown backbone types
+    if backbone_type == "unknown_type":
+        with pytest.raises(KeyError):
+            builder(pretrained=pretrained, pretrained_backbone=pretrained_backbone, num_classes=num_classes,
+                    trainable_backbone_layers=trainable_layers, freeze_bn=freeze_bn, backbone_type=backbone_type,
+                    returned_layers=returned_layers, anchor_sizes=anchor_sizes, aspect_ratios=aspect_ratios, angles=angles)
     else:
-        assert isinstance(builder(**params), nn.Module), "Builder should return a nn.Module object"
-
-# Test weight loading
-def test_get_weights_pretrained(mocker):
-    mocker.patch('your_module_name.get_pretrained_weights', return_value=MockWeights())
-    mocker.patch('your_module_name.get_pretrained_backbone_weights', return_value=None)
-    weights, backbone_weights = get_weights(True, False, "resnet50")
-    assert weights is not None, "Weights should not be None when pretrained is True"
-    assert backbone_weights is None, "Backbone weights should be None when pretrained_backbone is False"
-
-# Test model building function
-def test_build_model(mocker):
-    backbone = nn.Module()
-    mocker.patch.object(backbone, 'out_channels', 256, create=True)
-    model = build_model(backbone, 10, ['0', '1'], ((32, 64),), ((1.0,),), ((0, 90),), nn.BatchNorm2d)
-    assert isinstance(model, nn.Module), "Model should be an instance of nn.Module"
-
-# Example test for loading weights
-def test_load_model_weights():
-    model = nn.Module()
-    model.load_state_dict = lambda x, strict: None  # mock load_state_dict method
-    load_model_weights(model, MockWeights())
-    # Further assertions can be made depending on the modifications to the model's state dict
+        # Attempt to build the model with given parameters
+        result = builder(pretrained=pretrained, pretrained_backbone=pretrained_backbone, num_classes=num_classes,
+                         trainable_backbone_layers=trainable_layers, freeze_bn=freeze_bn, backbone_type=backbone_type,
+                         returned_layers=returned_layers, anchor_sizes=anchor_sizes, aspect_ratios=aspect_ratios, angles=angles)
+        # Check if the result is an instance of nn.Module, indicating successful construction
+        assert isinstance(result, nn.Module), f"Builder should return an instance of nn.Module for backbone type {backbone_type}"

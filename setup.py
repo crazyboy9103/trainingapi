@@ -9,7 +9,6 @@ from torch.utils.cpp_extension import CUDA_HOME, CppExtension, CUDAExtension
 
 HAS_CUDA = torch.cuda.is_available() and CUDA_HOME is not None
 FORCE_CUDA = os.getenv("FORCE_CUDA", "0") == "1"
-
 LIBRARY_NAME = "trainingapi"
 
 def get_extensions():
@@ -67,10 +66,4 @@ setup(
     package_dir={'': 'src'},
     ext_modules=get_extensions(),
     cmdclass={"build_ext": torch.utils.cpp_extension.BuildExtension},
-    install_requires=[
-        "torch==2.4.0+cu121",
-        "torchvision==0.19.0+cu121",
-        "lightning==2.3.3",
-        "timm==1.0.8",
-    ]
 )

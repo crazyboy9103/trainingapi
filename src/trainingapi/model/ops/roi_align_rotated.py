@@ -16,7 +16,7 @@ from trainingapi._C import (
     roi_align_rotated_backward
 )
 
-from trainingapi.model.layers.box_ops_rotated import box_area
+from trainingapi.model.ops.box_ops_rotated import box_area
 
 # Original implementation in detectron2.layers.roi_align_rotated
 class _ROIAlignRotated(Function):

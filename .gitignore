@@ -1,13 +1,11 @@
 .python-version
 .venv
-
-benchmark_pillow.py
-pillow_simd.txt
-pillow.txt
+venv 
 
 *.egg-info/
 build/
 *.pyd
 .pytest_cache
+dist/
 
 __pycache__/

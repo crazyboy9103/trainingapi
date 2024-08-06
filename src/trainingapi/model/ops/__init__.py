@@ -1,9 +1,9 @@
 import torch 
 try:
-    import detectron2._C 
+    import trainingapi._C 
 
 except ImportError:
-    raise ImportError("Cannot find detectron2._C. Have you run `python setup.py install`?")
+    raise ImportError("Cannot find trainingapi._C. Have you run `pip install -e .`?")
 
 from .anchors_rotated import RotatedAnchorGenerator
 from .box_ops_rotated import XYWHA_XYWHA_BoxCoder, remove_small_rotated_boxes

@@ -27,8 +27,8 @@ from trainingapi.model.detection.rpn import RotatedRegionProposalNetwork
 from trainingapi.model.detection.rpn import RotatedRPNHead
 from trainingapi.model.detection.heads import RotatedFasterRCNNRoIHead
 from trainingapi.data.transforms import RotatedFasterRCNNTransform
-from trainingapi.model.layers.roi_align_rotated import MultiScaleRotatedRoIAlign
-from trainingapi.model.layers.anchors_rotated import RotatedAnchorGenerator
+from trainingapi.model.ops.roi_align_rotated import MultiScaleRotatedRoIAlign
+from trainingapi.model.ops.anchors_rotated import RotatedAnchorGenerator
 
 from .generalized_rcnn import GeneralizedRCNN
 
@@ -156,23 +156,25 @@ def builder(
     pretrained_backbone,
     num_classes,
     trainable_backbone_layers,
-    freeze_bn,
     backbone_type,
     returned_layers,
-    anchor_sizes=((8, 16, 32, 64, 128,)) * 5,
+    freeze_bn = False, 
+    anchor_sizes=((8, 16, 32, 64, 128),) * 5, 
     aspect_ratios=((0.5, 1.0, 2.0),) * 5,
     angles=((0, 60, 120, 180, 240, 300),) * 5,
     **kwargs
 ):
     weights, weights_backbone = get_weights(pretrained, pretrained_backbone, backbone_type)
-    norm_layer = nn.BatchNorm2d if not (freeze_bn or weights is None and weights_backbone is None) else misc_nn_ops.FrozenBatchNorm2d
+    
+    is_trained = weights is not None or weights_backbone is not None
+    backbone_norm_layer = nn.BatchNorm2d if not (freeze_bn or is_trained) else misc_nn_ops.FrozenBatchNorm2d
     trainable_layers = validate_trainable_layers(trainable_backbone_layers, backbone_type, pretrained or pretrained_backbone)
 
-    backbone, feature_map_names = create_backbone(backbone_type, pretrained_backbone, trainable_layers, returned_layers, norm_layer)
-    model = build_model(backbone, num_classes, feature_map_names, anchor_sizes, aspect_ratios, angles, norm_layer, **kwargs)
+    backbone, feature_map_names = create_backbone(backbone_type, trainable_layers, returned_layers, backbone_norm_layer)
+    model = build_model(backbone, feature_map_names, num_classes, anchor_sizes, aspect_ratios, angles, **kwargs)
 
-    if weights:
-        load_model_weights(model, weights)
+    if weights is not None or weights_backbone is not None:
+        load_model_weights(model, weights, weights_backbone)
 
     return model
 
@@ -200,50 +202,52 @@ def get_pretrained_backbone_weights(backbone_type):
         "efficientnet_b2": EfficientNet_B2_Weights.IMAGENET1K_V1,
         "efficientnet_b3": EfficientNet_B3_Weights.IMAGENET1K_V1,
     }
-    return backbone_weights_lookup[backbone_type]
+    return backbone_weights_lookup.get(backbone_type, None)
 
 def validate_trainable_layers(trainable_layers, backbone_type, is_trained):
     max_layers = {
-        "resnet50": 5, "resnet18": 5, "mobilenetv3large": 6
+        "resnet50": 5, "resnet18": 5, "mobilenetv3large": 6,
+        "efficientnet_b0": 5, "efficientnet_b1": 5, "efficientnet_b2": 5, "efficientnet_b3": 5
     }[backbone_type]
-    return min(max_layers, trainable_layers if is_trained else 5)
+    return min(max_layers, trainable_layers if is_trained else max_layers)
 
-def create_backbone(backbone_type, pretrained_backbone, trainable_layers, returned_layers, norm_layer):
+def create_backbone(backbone_type, trainable_layers, returned_layers, norm_layer):
     if "resnet" in backbone_type:
-        backbone = models.__dict__[backbone_type](pretrained=pretrained_backbone)
-        return _resnet_fpn_extractor(backbone, trainable_layers, returned_layers, norm_layer), ['0', '1', '2', '3'][:len(returned_layers)]
+        backbone = models.__dict__[backbone_type](norm_layer=norm_layer)
+        return _resnet_fpn_extractor(backbone, trainable_layers=trainable_layers, returned_layers=returned_layers, ), ['0', '1', '2', '3'][:len(returned_layers)]
     
     elif backbone_type == "mobilenetv3large":
-        backbone = models.mobilenet_v3_large(weights=pretrained_backbone)
-        return _mobilenet_extractor(backbone, fpn=True, trainable_layers=trainable_layers, returned_layers=returned_layers, norm_layer=norm_layer), ['0', '1', '2', '3', '4'][:len(returned_layers)]
+        backbone = models.mobilenet_v3_large(norm_layer=norm_layer)
+        return _mobilenet_extractor(backbone, fpn=True, trainable_layers=trainable_layers, returned_layers=returned_layers), ['0', '1', '2', '3', '4'][:len(returned_layers)]
     
     elif "efficientnet" in backbone_type:
-        backbone = models.__dict__[backbone_type](pretrained=pretrained_backbone)
-        return _efficientnet_extractor(backbone, trainable_layers, returned_layers, norm_layer), ['0', '1', '2', '3'][:len(returned_layers)]
+        backbone = models.__dict__[backbone_type](norm_layer=norm_layer)
+        return _efficientnet_extractor(backbone,trainable_layers=trainable_layers, returned_layers=returned_layers), ['0', '1', '2', '3'][:len(returned_layers)]
     
     raise ValueError(f"Unsupported backbone type: {backbone_type}")
 
-def build_model(backbone, num_classes, feature_map_names, anchor_sizes, aspect_ratios, angles, norm_layer, **kwargs):
+def build_model(backbone, feature_map_names, num_classes, anchor_sizes, aspect_ratios, angles, **kwargs):
     num_features = len(feature_map_names) + 1
     assert num_features == len(anchor_sizes) == len(aspect_ratios) == len(angles), "Mismatch in number of features and anchor configurations."
     return RotatedFasterRCNN(
         backbone,
         num_classes=num_classes,
         rpn_anchor_generator=RotatedAnchorGenerator(anchor_sizes, aspect_ratios, angles),
-        box_head=FastRCNNConvFCHead((backbone.out_channels, 7, 7), [256] * 4, [1024], norm_layer=norm_layer),
+        box_head=FastRCNNConvFCHead((backbone.out_channels, 7, 7), [256] * 4, [1024], norm_layer=nn.BatchNorm2d),
         box_roi_pool=MultiScaleRotatedRoIAlign(featmap_names=feature_map_names, output_size=7, sampling_ratio=2),
         **kwargs
     )
 
-def load_model_weights(model, weights):
+def load_model_weights(model, weights, weights_backbone):
+    trained_weights = weights or weights_backbone
+    trained_state_dict = trained_weights.get_state_dict()
     model_state_dict = model.state_dict()
-    trained_state_dict = weights.get_state_dict()
     for k, tensor in model_state_dict.items():
         trained_tensor = trained_state_dict.get(k, None)
-        if trained_tensor and tensor.shape == trained_tensor.shape:
+        if trained_tensor is not None and tensor.shape == trained_tensor.shape:
             model_state_dict[k] = trained_tensor
         else:
-            print(f"[Builder] Skipped loading parameter {k} due to incompatible shapes: {tensor.shape} vs {trained_tensor.shape}")
+            print(f"[WARN] Skipped loading parameter {k} due to incompatible shapes: required shape is {tensor.shape}")
     model.load_state_dict(model_state_dict, strict=False)
     
 
@@ -252,7 +256,6 @@ def _efficientnet_extractor(
     trainable_layers: int,
     returned_layers: Optional[List[int]] = None,
     extra_blocks: Optional[ExtraFPNBlock] = None,
-    norm_layer: Optional[Callable[..., nn.Module]] = None,
 ) -> nn.Module:
     backbone = backbone.features
     # Gather the indices of blocks which are strided. These are the locations of C1, ..., Cn-1 blocks.
@@ -289,7 +292,7 @@ def _efficientnet_extractor(
             in_channels_list.append(layer[-1].out_channels)
             
     return BackboneWithFPN(
-        backbone, return_layers, in_channels_list, out_channels, extra_blocks=extra_blocks, norm_layer=norm_layer
+        backbone, return_layers, in_channels_list, out_channels, extra_blocks=extra_blocks, norm_layer=nn.BatchNorm2d
     )
     
 rotated_faster_rcnn_resnet50_fpn = partial(builder, backbone_type = "resnet50")
@@ -299,3 +302,14 @@ rotated_faster_rcnn_efficientnetb0_fpn = partial(builder, backbone_type = "effic
 rotated_faster_rcnn_efficientnetb1_fpn = partial(builder, backbone_type = "efficientnet_b1")
 rotated_faster_rcnn_efficientnetb2_fpn = partial(builder, backbone_type = "efficientnet_b2")
 rotated_faster_rcnn_efficientnetb3_fpn = partial(builder, backbone_type = "efficientnet_b3")
+
+    # pretrained,
+    # pretrained_backbone,
+    # num_classes,
+    # trainable_backbone_layers,
+    # backbone_type,
+    # returned_layers,
+    # freeze_bn = False, 
+    # anchor_sizes=((8, 16, 32, 64, 128,)) * 5,
+    # aspect_ratios=((0.5, 1.0, 2.0),) * 5,
+    # angles=((0, 60, 120, 180, 240, 300),) * 5,

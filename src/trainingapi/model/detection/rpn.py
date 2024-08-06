@@ -8,8 +8,8 @@ from torchvision.ops import Conv2dNormActivation
 from torchvision.models.detection.image_list import ImageList
 from torchvision.models.detection import _utils as det_utils
 
-from trainingapi.model.layers import XYWHA_XYWHA_BoxCoder, RotatedAnchorGenerator
-from trainingapi.model.layers import batched_nms_rotated, remove_small_rotated_boxes
+from trainingapi.model.ops import XYWHA_XYWHA_BoxCoder, RotatedAnchorGenerator
+from trainingapi.model.ops import batched_nms_rotated, remove_small_rotated_boxes
 
 class RotatedRPNHead(nn.Module):
     """
