@@ -69,21 +69,26 @@ class RotatedAnchorGenerator(nn.Module):
         dtype: torch.dtype = torch.float32,
         device: torch.device = torch.device("cpu"),
     ) -> Tensor:
-        scales = torch.as_tensor(scales, dtype=dtype, device=device)
-        aspect_ratios = torch.as_tensor(aspect_ratios, dtype=dtype, device=device)
-        angles = torch.as_tensor(angles, dtype=dtype, device=device)
-    
-        h_ratios = torch.sqrt(aspect_ratios) # sqrt(h/w)
-        w_ratios = 1 / h_ratios # sqrt(w/h)
+        scales_tensor = torch.as_tensor(scales, dtype=dtype, device=device)
+        aspect_ratios_tensor = torch.as_tensor(aspect_ratios, dtype=dtype, device=device)
+        angles_tensor = torch.as_tensor(angles, dtype=dtype, device=device)
+        
+        sqrt_aspect_ratios = torch.sqrt(aspect_ratios_tensor)
+        
+        widths = (1.0 / sqrt_aspect_ratios[:, None]) * scales_tensor
+        heights = sqrt_aspect_ratios[:, None] * scales_tensor
 
-        ws = (w_ratios[:, None] * scales[None, :]).view(-1) # sqrt(w/h) * sqrt(wh) = ws
-        hs = (h_ratios[:, None] * scales[None, :]).view(-1) # sqrt(h/w) * sqrt(wh) = hs
+        widths_flat = widths.flatten()
+        heights_flat = heights.flatten()
 
-        zeros = torch.zeros_like(ws, dtype=dtype, device=device)
-        anchors = torch.stack([zeros, zeros, ws, hs], dim=1)
-        anchors = torch.repeat_interleave(anchors, len(angles), dim=0)
-        angles = angles.repeat(len(ws)).unsqueeze(1)
-        anchors_with_angles = torch.cat([anchors, angles], dim=1)
+        num_anchors = widths_flat.size(0)
+        zero_center = torch.zeros(num_anchors, dtype=dtype, device=device)
+
+        anchors = torch.stack([zero_center, zero_center, widths_flat, heights_flat], dim=1)
+
+        angles_repeated = angles_tensor.repeat_interleave(num_anchors).unsqueeze(1)
+        
+        anchors_with_angles = torch.cat([anchors.repeat(len(angles_tensor), 1), angles_repeated], dim=1)
         return anchors_with_angles
 
     def set_cell_anchors(self, dtype: torch.dtype, device: torch.device):
