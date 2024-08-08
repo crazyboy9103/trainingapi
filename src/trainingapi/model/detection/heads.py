@@ -279,13 +279,13 @@ class RotatedFasterRCNNRoIHead(nn.Module):
         else:
             class_logits, obox_regression = self.logits_and_regression(features, proposals, image_shapes)
             
-            oboxes, oscores, olabels = self.postprocess_detections(class_logits, obox_regression, proposals, image_shapes)
+            oboxes, scores, labels = self.postprocess_detections(class_logits, obox_regression, proposals, image_shapes)
             for i in range(len(oboxes)):
                 result.append(
                     {
                         "oboxes": oboxes[i],
-                        "olabels": olabels[i],
-                        "oscores": oscores[i],
+                        "labels": labels[i],
+                        "scores": scores[i],
                     }
                 )
             

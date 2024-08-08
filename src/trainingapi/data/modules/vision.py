@@ -29,6 +29,7 @@ class VisionDataModule(L.LightningDataModule):
         self.train_kwargs = train_kwargs
         self.test_kwargs = test_kwargs
 
+        print(self.train_kwargs)
         self.train_loader = partial(
             DataLoader,
             batch_size=batch_size,
@@ -53,8 +54,8 @@ class VisionDataModule(L.LightningDataModule):
     def prepare_data(self) -> None:
         # Do not assign state here as it is called from the main process
         # Only test if the given kwargs and data_cls work
-        train = self.data_cls(self.train_kwargs)
-        test = self.data_cls(self.test_kwargs)
+        train = self.data_cls(**self.train_kwargs)
+        test = self.data_cls(**self.test_kwargs)
 
         image, ann = train[0]
         assert image is not None and ann is not None

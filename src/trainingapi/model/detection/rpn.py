@@ -9,7 +9,7 @@ from torchvision.models.detection.image_list import ImageList
 from torchvision.models.detection import _utils as det_utils
 
 from trainingapi.model.ops import XYWHA_XYWHA_BoxCoder, RotatedAnchorGenerator
-from trainingapi.model.ops import batched_nms_rotated, remove_small_rotated_boxes
+from trainingapi.model.ops import batched_nms_rotated, remove_small_rotated_boxes, box_iou_rotated
 
 class RotatedRPNHead(nn.Module):
     """
@@ -142,7 +142,7 @@ class RotatedRegionProposalNetwork(nn.Module):
                 matched_gt_boxes_per_image = torch.zeros(anchors_per_image.shape, dtype=torch.float32, device=device)
                 labels_per_image = torch.zeros((anchors_per_image.shape[0],), dtype=torch.float32, device=device)
             else:
-                match_quality_matrix = self.box_similarity(gt_boxes, anchors_per_image, True)
+                match_quality_matrix = box_iou_rotated(gt_boxes, anchors_per_image, True)
                 matched_idxs = self.proposal_matcher(match_quality_matrix)
                 # get the targets corresponding GT for each proposal
                 # NB: need to clamp the indices because we can have a single

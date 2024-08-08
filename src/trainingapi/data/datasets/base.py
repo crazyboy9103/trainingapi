@@ -31,6 +31,7 @@ class BaseDataset(Dataset):
             transforms (Optional[Union[A.Compose, T.Compose, Callable]]): Transforms to apply to each (image, ann) pair.
             image_mode (ImageReadMode): Mode to read the images (e.g., RGB, GRAY, RGBA).
         """
+        super().__init__()
         self.image_paths = image_paths or self.load_image_paths(**(load_image_paths_kwargs or {}))
         self.anns = anns or self.load_anns(**(load_anns_kwargs or {}))
         assert len(self.image_paths) == len(self.anns), "image_paths and anns must be of same length"

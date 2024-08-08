@@ -117,29 +117,33 @@ class RotatedMeanAveragePrecision(Metric):
         for image_idx, (gt_bboxes, dt_bboxes, dt_scores) in enumerate(zip(class_gt_bboxes, class_dt_bboxes, class_dt_scores)):
             num_gt_bboxes = gt_bboxes.shape[0]
             num_dt_bboxes = dt_bboxes.shape[0]
-            
-            total_num_gt_bboxes += num_gt_bboxes
-            
+
             if num_gt_bboxes == 0 or num_dt_bboxes == 0:
                 continue
             
+            total_num_gt_bboxes += num_gt_bboxes
             # Sort detections by score in descending order
             sorted_indices = torch.argsort(dt_scores, descending=True)
+            
             dt_bboxes = dt_bboxes[sorted_indices]
             dt_scores = dt_scores[sorted_indices]
             
+            ious = box_iou_rotated(dt_bboxes, gt_bboxes, angle_aware=False)
+            max_ious = ious.max(dim=1)
             # To keep track of which ground truth boxes have been assigned
             # GT boxes can only be assigned once
             assigned_gt_boxes = set()
-            for dt_bbox, dt_score in zip(dt_bboxes, dt_scores):
-                max_iou = -1
-                best_gt_idx = None
-                for gt_idx, gt_bbox in enumerate(gt_bboxes):    
-                    iou = box_iou_rotated(dt_bbox[None, :], gt_bbox[None, :], angle_aware=False).item()
-                    if iou > max_iou:
-                        max_iou = iou
-                        best_gt_idx = gt_idx
-
+            for i, (dt_bbox, dt_score) in enumerate(zip(dt_bboxes, dt_scores)):
+                # max_iou = -1
+                # best_gt_idx = None
+                # for gt_idx, gt_bbox in enumerate(gt_bboxes):    
+                #     iou = box_iou_rotated(dt_bbox[None, :], gt_bbox[None, :], angle_aware=False).item()
+                #     if iou > max_iou:
+                #         max_iou = iou
+                #         best_gt_idx = gt_idx
+                max_iou = max_ious.values[i].item()
+                best_gt_idx = max_ious.indices[i].item() # .item() is crucial as it is added to set
+                
                 dt_scores_for_sort.append(dt_score)
                 if max_iou >= iou_threshold:
                     if best_gt_idx in assigned_gt_boxes:
@@ -154,7 +158,7 @@ class RotatedMeanAveragePrecision(Metric):
                         dt_ious.append(max_iou)
                         
                         # Compute metric for angle 
-                        gt_angles.append(gt_bbox[4])
+                        gt_angles.append(gt_bboxes[best_gt_idx][4])
                         dt_angles.append(dt_bbox[4])
                         
                 else:
@@ -188,7 +192,7 @@ class RotatedMeanAveragePrecision(Metric):
         recalls = torch.cat([torch.tensor([0]), recalls, torch.tensor([1])])
         precisions = torch.cat([torch.tensor([1]), precisions, torch.tensor([0])])
         
-        AP = torch.trapz(precisions, recalls).item()
+        average_precision = torch.trapz(precisions, recalls).item()
         
         mean_iou = dt_ious.mean().item()
         
@@ -196,4 +200,4 @@ class RotatedMeanAveragePrecision(Metric):
         # Score of angular precision (SoAP) 
         # We rather use the mean 
         soap = torch.min(abs_diff_angle, 360 - abs_diff_angle).mean().item()
-        return precision, recall, f1_score, AP, mean_iou, soap
+        return precision, recall, f1_score, average_precision, mean_iou, soap
