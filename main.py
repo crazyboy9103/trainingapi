@@ -1,54 +1,66 @@
-# main.py
-# ! pip install torchvision
-import torch, torch.nn as nn, torch.utils.data as data, torchvision as tv, torch.nn.functional as F
-import lightning as L
+import lightning.pytorch as L
+from lightning.pytorch.loggers import WandbLogger
+from lightning.pytorch.callbacks import LearningRateMonitor, LearningRateFinder
 
-# --------------------------------
-# Step 1: Define a LightningModule
-# --------------------------------
-# A LightningModule (nn.Module subclass) defines a full *system*
-# (ie: an LLM, diffusion model, autoencoder, or simple image classifier).
+import torch 
+from torchvision.transforms import v2 as T
+import wandb
+wandb.require("core")
 
-class LitAutoEncoder(L.LightningModule):
-    def __init__(self):
-        super().__init__()
-        self.encoder = nn.Sequential(nn.Linear(28 * 28, 128), nn.ReLU(), nn.Linear(128, 3))
-        self.decoder = nn.Sequential(nn.Linear(3, 128), nn.ReLU(), nn.Linear(128, 28 * 28))
+from trainingapi.data.modules.vision import VisionDataModule
+from trainingapi.data.datasets.mvtec import MVTecDataset
+from trainingapi.model.detection.modules import RotatedFasterRCNN
 
-    def forward(self, x):
-        # in lightning, forward defines the prediction/inference actions
-        embedding = self.encoder(x)
-        return embedding
-
-    def training_step(self, batch, batch_idx):
-        # training_step defines the train loop. It is independent of forward
-        x, _ = batch
-        x = x.view(x.size(0), -1)
-        z = self.encoder(x)
-        x_hat = self.decoder(z)
-        loss = F.mse_loss(x_hat, x)
-        self.log("train_loss", loss)
-        return loss
-
-    def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
-        return optimizer
-
+def main():
+    t = T.Compose([
+        T.ToDtype(torch.float32, scale=True),
+    ])
+    dm = VisionDataModule(
+        MVTecDataset, 
+        train_kwargs=dict(
+            load_image_paths_kwargs=dict(
+                image_folder = "D:/datasets/mvtec/train/images"
+            ),
+            load_anns_kwargs=dict(
+                ann_folder = "D:/datasets/mvtec/train/annfiles"
+            ),
+            transforms = t
+        ),
+        test_kwargs=dict(
+            load_image_paths_kwargs=dict(
+                image_folder = "D:/datasets/mvtec/test/images"
+            ),
+            load_anns_kwargs=dict(
+                ann_folder = "D:/datasets/mvtec/test/annfiles"
+            ),
+            transforms = t
+        ),
+        batch_size = 8,
+        shuffle = True,
+        num_workers = 2,
+        pin_memory = True,
+        drop_last = False,
+        persistent_workers = False, 
+    )
+    
+    model = RotatedFasterRCNN(lr=0.001)
+    logger = WandbLogger(project="ood", name="test", log_model=False, save_dir=".")
+    
+    trainer = L.Trainer(
+        accelerator = "gpu", 
+        devices = 1,
+        logger = logger,
+        max_epochs = 10,
+        precision="16-mixed",
+        benchmark=True,
+        deterministic=True,
+        callbacks=[
+            LearningRateFinder(0.00001, 0.001),
+            LearningRateMonitor(logging_interval="epoch")
+        ],
+        num_sanity_val_steps=0
+    )
+    trainer.fit(model, datamodule=dm)
 
 if __name__ == "__main__":
-    # -------------------
-    # Step 2: Define data
-    # -------------------
-    dataset = tv.datasets.MNIST(".", download=True, transform=tv.transforms.ToTensor())
-    train, val = data.random_split(dataset, [55000, 5000])
-
-    # -------------------
-    # Step 3: Train
-    # -------------------
-    torch.set_float32_matmul_precision('medium')
-    autoencoder = LitAutoEncoder()
-    trainer = L.Trainer(devices=-1, accelerator="gpu", precision="16-mixed", max_epochs=10)
-
-    from functools import partial
-    dl = partial(data.DataLoader, batch_size=64, num_workers=8, pin_memory=True, persistent_workers=True)
-    trainer.fit(autoencoder, dl(train), dl(val))
+    main()

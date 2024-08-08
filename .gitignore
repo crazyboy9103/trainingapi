@@ -9,3 +9,5 @@ build/
 dist/
 
 __pycache__/
+wandb/
+.lr_find*

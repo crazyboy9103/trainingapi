@@ -1,41 +1,44 @@
-from typing import List, Optional, Tuple, Dict, Callable
 from functools import partial
+from typing import Callable, Dict, List, Optional, Tuple
 
 import torch
 from torch import nn
-
 from torchvision import models
+from torchvision.models.detection.backbone_utils import (
+    BackboneWithFPN,
+    _mobilenet_extractor,
+    _resnet_fpn_extractor,
+    _validate_trainable_layers,
+)
+from torchvision.models.detection.faster_rcnn import (
+    FasterRCNN_MobileNet_V3_Large_FPN_Weights,
+    FasterRCNN_ResNet50_FPN_V2_Weights,
+    FastRCNNConvFCHead,
+    TwoMLPHead,
+)
+from torchvision.models.efficientnet import (
+    EfficientNet_B0_Weights,
+    EfficientNet_B1_Weights,
+    EfficientNet_B2_Weights,
+    EfficientNet_B3_Weights,
+)
+from torchvision.models.mobilenetv3 import MobileNet_V3_Large_Weights
+from torchvision.models.resnet import ResNet18_Weights, ResNet50_Weights
 from torchvision.ops import misc as misc_nn_ops
 from torchvision.ops.feature_pyramid_network import ExtraFPNBlock, LastLevelMaxPool
-from torchvision.models.detection.backbone_utils import BackboneWithFPN
-from torchvision.models.detection.backbone_utils import _mobilenet_extractor
-from torchvision.models.detection.backbone_utils import _resnet_fpn_extractor
-from torchvision.models.detection.backbone_utils import _validate_trainable_layers
-from torchvision.models.detection.faster_rcnn import TwoMLPHead
-from torchvision.models.detection.faster_rcnn import FastRCNNConvFCHead
-from torchvision.models.detection.faster_rcnn import FasterRCNN_MobileNet_V3_Large_FPN_Weights
-from torchvision.models.detection.faster_rcnn import FasterRCNN_ResNet50_FPN_V2_Weights
-from torchvision.models.resnet import ResNet18_Weights
-from torchvision.models.resnet import ResNet50_Weights
-from torchvision.models.mobilenetv3 import MobileNet_V3_Large_Weights
-from torchvision.models.efficientnet import EfficientNet_B0_Weights
-from torchvision.models.efficientnet import EfficientNet_B1_Weights
-from torchvision.models.efficientnet import EfficientNet_B2_Weights
-from torchvision.models.efficientnet import EfficientNet_B3_Weights
 
-from trainingapi.model.detection.rpn import RotatedRegionProposalNetwork
-from trainingapi.model.detection.rpn import RotatedRPNHead
-from trainingapi.model.detection.heads import RotatedFasterRCNNRoIHead
 from trainingapi.data.transforms import RotatedFasterRCNNTransform
-from trainingapi.model.ops.roi_align_rotated import MultiScaleRotatedRoIAlign
+from trainingapi.model.detection.generalized_rcnn import GeneralizedRCNN
+from trainingapi.model.detection.heads import RotatedFasterRCNNRoIHead
+from trainingapi.model.detection.rpn import RotatedRegionProposalNetwork, RotatedRPNHead
 from trainingapi.model.ops.anchors_rotated import RotatedAnchorGenerator
+from trainingapi.model.ops.roi_align_rotated import MultiScaleRotatedRoIAlign
 
-from .generalized_rcnn import GeneralizedRCNN
 
 class RotatedFasterRCNN(GeneralizedRCNN):
     def __init__(
-        self, 
-        backbone: nn.Module,                
+        self,
+        backbone: nn.Module,
         num_classes: int = 16,
         # transform parameters
         min_size=800,
@@ -69,61 +72,72 @@ class RotatedFasterRCNN(GeneralizedRCNN):
         **kwargs,
     ) -> None:
         out_channels = backbone.out_channels
-        
+
         if box_head is None:
             resolution = box_roi_pool.output_size[0]
-            box_head = TwoMLPHead(in_channels=out_channels * resolution * resolution, representation_size=1024)
+            box_head = TwoMLPHead(
+                in_channels=out_channels * resolution * resolution,
+                representation_size=1024,
+            )
 
         if box_predictor is None:
-            box_predictor = RotatedFasterRCNNPredictor(in_channels=1024, num_classes=num_classes)
-            
+            box_predictor = RotatedFasterRCNNPredictor(
+                in_channels=1024, num_classes=num_classes
+            )
+
         if image_mean is None:
             image_mean = [0.485, 0.456, 0.406]
         if image_std is None:
             image_std = [0.229, 0.224, 0.225]
 
-        transform = RotatedFasterRCNNTransform(min_size, max_size, image_mean, image_std, **kwargs)
-        
-        rpn_head = RotatedRPNHead(in_channels = out_channels, num_anchors = rpn_anchor_generator.num_anchors_per_location()[0], conv_depth = 1, bbox_dim = 6)
-        rpn = RotatedRegionProposalNetwork(
-            anchor_generator = rpn_anchor_generator, 
-            head = rpn_head,
-            # Faster-RCNN Training
-            fg_iou_thresh = rpn_fg_iou_thresh,
-            bg_iou_thresh = rpn_bg_iou_thresh,
-            batch_size_per_image = rpn_batch_size_per_image,
-            positive_fraction = rpn_positive_fraction,
-            # Faster-RCNN Inference
-            pre_nms_top_n = dict(
-                training=rpn_pre_nms_top_n_train, 
-                testing=rpn_pre_nms_top_n_test
-            ),
-            post_nms_top_n = dict(
-                training=rpn_post_nms_top_n_train, 
-                testing=rpn_post_nms_top_n_test
-            ),
-            nms_thresh = rpn_nms_thresh,
-            score_thresh = rpn_score_thresh
+        transform = RotatedFasterRCNNTransform(
+            min_size, max_size, image_mean, image_std, **kwargs
         )
-        
+
+        rpn_head = RotatedRPNHead(
+            in_channels=out_channels,
+            num_anchors=rpn_anchor_generator.num_anchors_per_location()[0],
+            conv_depth=1,
+            bbox_dim=6,
+        )
+        rpn = RotatedRegionProposalNetwork(
+            anchor_generator=rpn_anchor_generator,
+            head=rpn_head,
+            # Faster-RCNN Training
+            fg_iou_thresh=rpn_fg_iou_thresh,
+            bg_iou_thresh=rpn_bg_iou_thresh,
+            batch_size_per_image=rpn_batch_size_per_image,
+            positive_fraction=rpn_positive_fraction,
+            # Faster-RCNN Inference
+            pre_nms_top_n=dict(
+                training=rpn_pre_nms_top_n_train, testing=rpn_pre_nms_top_n_test
+            ),
+            post_nms_top_n=dict(
+                training=rpn_post_nms_top_n_train, testing=rpn_post_nms_top_n_test
+            ),
+            nms_thresh=rpn_nms_thresh,
+            score_thresh=rpn_score_thresh,
+        )
+
         roi_heads = RotatedFasterRCNNRoIHead(
             # Box
-            box_roi_pool = box_roi_pool,
-            box_head = box_head,
-            box_predictor = box_predictor,
+            box_roi_pool=box_roi_pool,
+            box_head=box_head,
+            box_predictor=box_predictor,
             # Rotated Faster R-CNN training
-            fg_iou_thresh = box_fg_iou_thresh,
-            bg_iou_thresh = box_bg_iou_thresh,
-            batch_size_per_image = box_batch_size_per_image,
-            positive_fraction = box_positive_fraction,
-            bbox_reg_weights = bbox_reg_weights,
+            fg_iou_thresh=box_fg_iou_thresh,
+            bg_iou_thresh=box_bg_iou_thresh,
+            batch_size_per_image=box_batch_size_per_image,
+            positive_fraction=box_positive_fraction,
+            bbox_reg_weights=bbox_reg_weights,
             # Faster R-CNN inference
-            score_thresh = box_score_thresh,
-            box_nms_thresh = box_nms_thresh,
-            detections_per_img = box_detections_per_img,
+            score_thresh=box_score_thresh,
+            box_nms_thresh=box_nms_thresh,
+            detections_per_img=box_detections_per_img,
         )
-                
+
         super(RotatedFasterRCNN, self).__init__(backbone, transform, rpn, roi_heads)
+
 
 class RotatedFasterRCNNPredictor(nn.Module):
     """
@@ -149,7 +163,8 @@ class RotatedFasterRCNNPredictor(nn.Module):
         scores = self.cls_score(x)
         obbox_deltas = self.obbox_pred(x)
         return scores, obbox_deltas
-    
+
+
 def builder(
     *,
     pretrained,
@@ -158,25 +173,44 @@ def builder(
     trainable_backbone_layers,
     backbone_type,
     returned_layers,
-    freeze_bn = False, 
-    anchor_sizes=((8, 16, 32, 64, 128),) * 5, 
+    freeze_bn=False,
+    anchor_sizes=((8, 16, 32, 64, 128),) * 5,
     aspect_ratios=((0.5, 1.0, 2.0),) * 5,
     angles=((0, 60, 120, 180, 240, 300),) * 5,
-    **kwargs
+    **kwargs,
 ):
-    weights, weights_backbone = get_weights(pretrained, pretrained_backbone, backbone_type)
-    
-    is_trained = weights is not None or weights_backbone is not None
-    backbone_norm_layer = nn.BatchNorm2d if not (freeze_bn or is_trained) else misc_nn_ops.FrozenBatchNorm2d
-    trainable_layers = validate_trainable_layers(trainable_backbone_layers, backbone_type, pretrained or pretrained_backbone)
+    weights, weights_backbone = get_weights(
+        pretrained, pretrained_backbone, backbone_type
+    )
 
-    backbone, feature_map_names = create_backbone(backbone_type, trainable_layers, returned_layers, backbone_norm_layer)
-    model = build_model(backbone, feature_map_names, num_classes, anchor_sizes, aspect_ratios, angles, **kwargs)
+    is_trained = weights is not None or weights_backbone is not None
+    backbone_norm_layer = (
+        nn.BatchNorm2d
+        if not (freeze_bn or is_trained)
+        else misc_nn_ops.FrozenBatchNorm2d
+    )
+    trainable_layers = validate_trainable_layers(
+        trainable_backbone_layers, backbone_type, pretrained or pretrained_backbone
+    )
+
+    backbone, feature_map_names = create_backbone(
+        backbone_type, trainable_layers, returned_layers, backbone_norm_layer
+    )
+    model = build_model(
+        backbone,
+        feature_map_names,
+        num_classes,
+        anchor_sizes,
+        aspect_ratios,
+        angles,
+        **kwargs,
+    )
 
     if weights is not None or weights_backbone is not None:
         load_model_weights(model, weights, weights_backbone)
 
     return model
+
 
 def get_weights(pretrained, pretrained_backbone, backbone_type):
     if pretrained:
@@ -185,12 +219,14 @@ def get_weights(pretrained, pretrained_backbone, backbone_type):
         return None, get_pretrained_backbone_weights(backbone_type)
     return None, None
 
+
 def get_pretrained_weights(backbone_type):
     weights_lookup = {
         "resnet50": FasterRCNN_ResNet50_FPN_V2_Weights.COCO_V1,
-        "mobilenetv3large": FasterRCNN_MobileNet_V3_Large_FPN_Weights.COCO_V1
+        "mobilenetv3large": FasterRCNN_MobileNet_V3_Large_FPN_Weights.COCO_V1,
     }
     return weights_lookup.get(backbone_type, None)
+
 
 def get_pretrained_backbone_weights(backbone_type):
     backbone_weights_lookup = {
@@ -204,39 +240,75 @@ def get_pretrained_backbone_weights(backbone_type):
     }
     return backbone_weights_lookup.get(backbone_type, None)
 
+
 def validate_trainable_layers(trainable_layers, backbone_type, is_trained):
     max_layers = {
-        "resnet50": 5, "resnet18": 5, "mobilenetv3large": 6,
-        "efficientnet_b0": 5, "efficientnet_b1": 5, "efficientnet_b2": 5, "efficientnet_b3": 5
+        "resnet50": 5,
+        "resnet18": 5,
+        "mobilenetv3large": 6,
+        "efficientnet_b0": 5,
+        "efficientnet_b1": 5,
+        "efficientnet_b2": 5,
+        "efficientnet_b3": 5,
     }[backbone_type]
     return min(max_layers, trainable_layers if is_trained else max_layers)
+
 
 def create_backbone(backbone_type, trainable_layers, returned_layers, norm_layer):
     if "resnet" in backbone_type:
         backbone = models.__dict__[backbone_type](norm_layer=norm_layer)
-        return _resnet_fpn_extractor(backbone, trainable_layers=trainable_layers, returned_layers=returned_layers, ), ['0', '1', '2', '3'][:len(returned_layers)]
-    
+        return _resnet_fpn_extractor(
+            backbone,
+            trainable_layers=trainable_layers,
+            returned_layers=returned_layers,
+        ), ["0", "1", "2", "3"][: len(returned_layers)]
+
     elif backbone_type == "mobilenetv3large":
         backbone = models.mobilenet_v3_large(norm_layer=norm_layer)
-        return _mobilenet_extractor(backbone, fpn=True, trainable_layers=trainable_layers, returned_layers=returned_layers), ['0', '1', '2', '3', '4'][:len(returned_layers)]
-    
+        return _mobilenet_extractor(
+            backbone,
+            fpn=True,
+            trainable_layers=trainable_layers,
+            returned_layers=returned_layers,
+        ), ["0", "1", "2", "3", "4"][: len(returned_layers)]
+
     elif "efficientnet" in backbone_type:
         backbone = models.__dict__[backbone_type](norm_layer=norm_layer)
-        return _efficientnet_extractor(backbone,trainable_layers=trainable_layers, returned_layers=returned_layers), ['0', '1', '2', '3'][:len(returned_layers)]
-    
+        return _efficientnet_extractor(
+            backbone, trainable_layers=trainable_layers, returned_layers=returned_layers
+        ), ["0", "1", "2", "3"][: len(returned_layers)]
+
     raise ValueError(f"Unsupported backbone type: {backbone_type}")
 
-def build_model(backbone, feature_map_names, num_classes, anchor_sizes, aspect_ratios, angles, **kwargs):
+
+def build_model(
+    backbone,
+    feature_map_names,
+    num_classes,
+    anchor_sizes,
+    aspect_ratios,
+    angles,
+    **kwargs,
+):
     num_features = len(feature_map_names) + 1
-    assert num_features == len(anchor_sizes) == len(aspect_ratios) == len(angles), "Mismatch in number of features and anchor configurations."
+    assert (
+        num_features == len(anchor_sizes) == len(aspect_ratios) == len(angles)
+    ), "Mismatch in number of features and anchor configurations."
     return RotatedFasterRCNN(
         backbone,
         num_classes=num_classes,
-        rpn_anchor_generator=RotatedAnchorGenerator(anchor_sizes, aspect_ratios, angles),
-        box_head=FastRCNNConvFCHead((backbone.out_channels, 7, 7), [256] * 4, [1024], norm_layer=nn.BatchNorm2d),
-        box_roi_pool=MultiScaleRotatedRoIAlign(featmap_names=feature_map_names, output_size=7, sampling_ratio=2),
-        **kwargs
+        rpn_anchor_generator=RotatedAnchorGenerator(
+            anchor_sizes, aspect_ratios, angles
+        ),
+        box_head=FastRCNNConvFCHead(
+            (backbone.out_channels, 7, 7), [256] * 4, [1024], norm_layer=nn.BatchNorm2d
+        ),
+        box_roi_pool=MultiScaleRotatedRoIAlign(
+            featmap_names=feature_map_names, output_size=7, sampling_ratio=2
+        ),
+        **kwargs,
     )
+
 
 def load_model_weights(model, weights, weights_backbone):
     trained_weights = weights or weights_backbone
@@ -247,9 +319,11 @@ def load_model_weights(model, weights, weights_backbone):
         if trained_tensor is not None and tensor.shape == trained_tensor.shape:
             model_state_dict[k] = trained_tensor
         else:
-            print(f"[WARN] Skipped loading parameter {k} due to incompatible shapes: required shape is {tensor.shape}")
+            print(
+                f"[WARN] Skipped loading parameter {k} due to incompatible shapes: required shape is {tensor.shape}"
+            )
     model.load_state_dict(model_state_dict, strict=False)
-    
+
 
 def _efficientnet_extractor(
     backbone: models.EfficientNet,
@@ -265,8 +339,14 @@ def _efficientnet_extractor(
 
     # find the index of the layer from which we won't freeze
     if trainable_layers < 0 or trainable_layers > num_stages:
-        raise ValueError(f"Trainable layers should be in the range [0,{num_stages}], got {trainable_layers} ")
-    freeze_before = len(backbone) if trainable_layers == 0 else stage_indices[num_stages - trainable_layers]
+        raise ValueError(
+            f"Trainable layers should be in the range [0,{num_stages}], got {trainable_layers} "
+        )
+    freeze_before = (
+        len(backbone)
+        if trainable_layers == 0
+        else stage_indices[num_stages - trainable_layers]
+    )
 
     for b in backbone[:freeze_before]:
         for parameter in b.parameters():
@@ -279,9 +359,13 @@ def _efficientnet_extractor(
     if returned_layers is None:
         returned_layers = [num_stages - 2, num_stages - 1]
     if min(returned_layers) < 0 or max(returned_layers) >= num_stages:
-        raise ValueError(f"Each returned layer should be in the range [0,{num_stages - 1}], got {returned_layers} ")
-    return_layers = {f"{stage_indices[k]}": str(v) for v, k in enumerate(returned_layers)}
-    
+        raise ValueError(
+            f"Each returned layer should be in the range [0,{num_stages - 1}], got {returned_layers} "
+        )
+    return_layers = {
+        f"{stage_indices[k]}": str(v) for v, k in enumerate(returned_layers)
+    }
+
     in_channels_list = []
     for i in returned_layers:
         layer = backbone[stage_indices[i]]
@@ -290,15 +374,31 @@ def _efficientnet_extractor(
 
         else:
             in_channels_list.append(layer[-1].out_channels)
-            
+
     return BackboneWithFPN(
-        backbone, return_layers, in_channels_list, out_channels, extra_blocks=extra_blocks, norm_layer=nn.BatchNorm2d
+        backbone,
+        return_layers,
+        in_channels_list,
+        out_channels,
+        extra_blocks=extra_blocks,
+        norm_layer=nn.BatchNorm2d,
     )
-    
-rotated_faster_rcnn_resnet50_fpn = partial(builder, backbone_type = "resnet50")
-rotated_faster_rcnn_resnet18_fpn = partial(builder, backbone_type = "resnet18")
-rotated_faster_rcnn_mobilenetv3_large_fpn = partial(builder, backbone_type = "mobilenetv3large")
-rotated_faster_rcnn_efficientnetb0_fpn = partial(builder, backbone_type = "efficientnet_b0")
-rotated_faster_rcnn_efficientnetb1_fpn = partial(builder, backbone_type = "efficientnet_b1")
-rotated_faster_rcnn_efficientnetb2_fpn = partial(builder, backbone_type = "efficientnet_b2")
-rotated_faster_rcnn_efficientnetb3_fpn = partial(builder, backbone_type = "efficientnet_b3")
+
+
+rotated_faster_rcnn_resnet50_fpn = partial(builder, backbone_type="resnet50")
+rotated_faster_rcnn_resnet18_fpn = partial(builder, backbone_type="resnet18")
+rotated_faster_rcnn_mobilenetv3_large_fpn = partial(
+    builder, backbone_type="mobilenetv3large"
+)
+rotated_faster_rcnn_efficientnetb0_fpn = partial(
+    builder, backbone_type="efficientnet_b0"
+)
+rotated_faster_rcnn_efficientnetb1_fpn = partial(
+    builder, backbone_type="efficientnet_b1"
+)
+rotated_faster_rcnn_efficientnetb2_fpn = partial(
+    builder, backbone_type="efficientnet_b2"
+)
+rotated_faster_rcnn_efficientnetb3_fpn = partial(
+    builder, backbone_type="efficientnet_b3"
+)
