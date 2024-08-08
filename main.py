@@ -1,7 +1,9 @@
 import lightning.pytorch as L
 import torch
 from lightning.pytorch.callbacks import LearningRateFinder, LearningRateMonitor
+from lightning.pytorch.accelerators import find_usable_cuda_devices
 from lightning.pytorch.loggers import WandbLogger
+from lightning.pytorch.strategies import DDPStrategy
 from torchvision.transforms import v2 as T
 
 import wandb
@@ -23,18 +25,18 @@ def main():
     dm = VisionDataModule(
         data_cls=MVTecDataset,
         train_kwargs=dict(
-            load_image_paths_kwargs=dict(image_folder="D:/datasets/mvtec/train/images"),
-            load_anns_kwargs=dict(ann_folder="D:/datasets/mvtec/train/annfiles"),
+            load_image_paths_kwargs=dict(image_folder="/home/work/.trainingapi/mvtec/train/images"),
+            load_anns_kwargs=dict(ann_folder="/home/work/.trainingapi/mvtec/train/annfiles"),
             transforms=t,
         ),
         test_kwargs=dict(
-            load_image_paths_kwargs=dict(image_folder="D:/datasets/mvtec/test/images"),
-            load_anns_kwargs=dict(ann_folder="D:/datasets/mvtec/test/annfiles"),
+            load_image_paths_kwargs=dict(image_folder="/home/work/.trainingapi/mvtec/test/images"),
+            load_anns_kwargs=dict(ann_folder="/home/work/.trainingapi/mvtec/test/annfiles"),
             transforms=t,
         ),
-        batch_size=4,
+        batch_size=16,
         shuffle=True,
-        num_workers=2,
+        num_workers=8,
         pin_memory=True,
         drop_last=False,
         persistent_workers=True,
@@ -65,9 +67,11 @@ def main():
     )
     logger = WandbLogger(project="ood", name="test", log_model=False, save_dir=".")
 
+    devices = find_usable_cuda_devices(-1)
     trainer = L.Trainer(
+        strategy=DDPStrategy(process_group_backend="gloo"),
         accelerator="gpu",
-        devices=1,
+        devices=devices,
         logger=logger,
         max_epochs=10,
         precision="32",
@@ -78,7 +82,9 @@ def main():
             LearningRateMonitor(logging_interval="epoch"),
         ],
         num_sanity_val_steps=0,
-        log_every_n_steps=1
+        log_every_n_steps=1,
+        # fast_dev_run=True
+        sync_batchnorm=len(devices) > 1
     )
     trainer.fit(model, datamodule=dm)
 

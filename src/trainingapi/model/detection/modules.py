@@ -1,6 +1,7 @@
 import lightning.pytorch as L
 
 from torch import optim
+from torch import distributed as dist 
 
 from trainingapi.evaluation.benchmark_metrics import RotatedMeanAveragePrecision
 from trainingapi.model.detection.rotated_faster_rcnn import rotated_faster_rcnn_resnet50_fpn
@@ -23,7 +24,7 @@ class RotatedFasterRCNN(L.LightningModule):
         )
         self.lr = lr
         
-        self.metric = RotatedMeanAveragePrecision(0.5)
+        self.metric = RotatedMeanAveragePrecision(0.5, compute_on_cpu=False)
     
     def forward(self, images, targets):
         return self.model(images, targets)
@@ -36,9 +37,9 @@ class RotatedFasterRCNN(L.LightningModule):
         
         loss = sum(loss for loss in loss_dict.values())
         for k, v in loss_dict.items():
-            self.log(f'train-{k}', v.item(), prog_bar=True, on_epoch=True)
+            self.log(f'train-{k}', v.item(), prog_bar=True, on_epoch=True, sync_dist=dist.is_initialized())
             
-        self.log('train-loss', loss.item(), prog_bar=True, on_epoch=True)
+        self.log('train-loss', loss.item(), prog_bar=True, on_epoch=True, sync_dist=dist.is_initialized())
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -49,10 +50,10 @@ class RotatedFasterRCNN(L.LightningModule):
     
     def on_validation_epoch_end(self):
         average_metrics, metrics_by_iou_threshold, metrics_by_class = self.metric.compute()
-        self.log_dict(average_metrics)
+        self.log_dict(average_metrics, sync_dist=dist.is_initialized())
         
         for iou_threshold, metrics in metrics_by_iou_threshold.items():
-            self.log_dict({f"{k}@{iou_threshold}": v for k, v in metrics.items()})
+            self.log_dict({f"{k}@{iou_threshold}": v for k, v in metrics.items()}, sync_dist=dist.is_initialized())
         
         self.metric.reset()
 
