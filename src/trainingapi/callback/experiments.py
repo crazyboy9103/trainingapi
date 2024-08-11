@@ -42,8 +42,7 @@ class RotatedDetectionImageLogger(Callback):
         self.color_palette = color_palette
         self.class_map = class_map
         self.logger = None
-        self.num_batches_per_epoch = None
-        
+
     @override
     def on_fit_start(self,  trainer: "L.Trainer", pl_module: "L.LightningModule"):
         if not trainer.loggers:
@@ -55,8 +54,6 @@ class RotatedDetectionImageLogger(Callback):
         
         if not self.logger:
             raise MisconfigurationException(f"{self.__class__.__name__} must have WandbLogger")
-
-        self.num_batches_per_epoch = trainer.num_val_batches[0] # assume one validloader
 
     @override
     def on_validation_batch_end(
@@ -77,7 +74,8 @@ class RotatedDetectionImageLogger(Callback):
                     )
                 ]
             })
-        elif batch_idx == self.num_batches_per_epoch - 1:
+            
+        elif batch_idx == min(trainer.num_val_batches) - 1:
             self.logger.experiment.log({
                 "images": [
                     wandb.Image(pil_image)
