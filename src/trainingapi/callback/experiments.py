@@ -56,7 +56,7 @@ class RotatedDetectionImageLogger(Callback):
         if not self.logger:
             raise MisconfigurationException(f"{self.__class__.__name__} must have WandbLogger")
 
-        self.num_batches_per_epoch = trainer.num_val_batches
+        self.num_batches_per_epoch = trainer.num_val_batches[0] # assume one validloader
 
     @override
     def on_validation_batch_end(
