@@ -11,5 +11,4 @@ def box_iou_rotated(boxes1: torch.Tensor, boxes2: torch.Tensor, angle_aware: boo
     Returns:
         Tensor[N, N]: the NxN matrix containing the pairwise IoU values for every element in boxes1 and boxes2
     """
-    # print(boxes1.dtype, boxes2.dtype)
     return _C_box_iou_rotated(boxes1.contiguous(), boxes2.contiguous(), angle_aware)
