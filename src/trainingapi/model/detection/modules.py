@@ -1,3 +1,4 @@
+from typing import Any
 import lightning.pytorch as L
 
 from torch import optim
@@ -11,12 +12,7 @@ class RotatedFasterRCNN(L.LightningModule):
         super().__init__()
         
         self.model = rotated_faster_rcnn_resnet50_fpn(
-            pretrained=True, 
-            pretrained_backbone=False,
             num_classes=14,
-            trainable_backbone_layers=5, 
-            returned_layers=[1,2,3,4],
-            freeze_bn=False, 
             anchor_sizes=((8, 16, 32, 64, 128),) * 5,
             aspect_ratios=((0.5, 1.0, 2.0),) * 5,
             angles=((0, 60, 120, 180, 240, 300),) * 5,
@@ -47,6 +43,7 @@ class RotatedFasterRCNN(L.LightningModule):
         targets = [{k: v for k, v in t.items()} for t in targets]
         _, outputs = self(images, targets)
         self.metric.update(outputs, targets)
+        return outputs # to use it in callback on_validation_epoch_end
     
     def on_validation_epoch_end(self):
         average_metrics, metrics_by_iou_threshold, metrics_by_class = self.metric.compute()
