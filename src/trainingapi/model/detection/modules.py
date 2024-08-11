@@ -6,6 +6,7 @@ from torch import distributed as dist
 
 from trainingapi.evaluation.benchmark_metrics import RotatedMeanAveragePrecision
 from trainingapi.model.detection.rotated_faster_rcnn import rotated_faster_rcnn_resnet50_fpn
+from trainingapi.schedule.linear_warmup_multistep_decay import LinearWarmUpMultiStepDecay
 
 class RotatedFasterRCNN(L.LightningModule):
     def __init__(self, lr, **model_kwargs):
@@ -56,15 +57,14 @@ class RotatedFasterRCNN(L.LightningModule):
 
     def configure_optimizers(self):
         optimizer = optim.Adam(self.parameters(), lr=self.lr, weight_decay=1e-4)
-        # steps_per_epoch = self.trainer.estimated_stepping_batches // self.trainer.max_epochs
-        # # following milestones, warmup_iters are arbitrarily chosen
-        # first, second = steps_per_epoch * int(self.trainer.max_epochs * 4/6), steps_per_epoch * int(self.trainer.max_epochs * 5/6)
-        # warmup_iters = steps_per_epoch * int(self.trainer.max_epochs * 1/6)
-        # scheduler = LinearWarmUpMultiStepDecay(optimizer, milestones=[first, second], gamma=1/3, warmup_iters=warmup_iters)
-        # scheduler_config = {
-        #     "scheduler": scheduler,
-        #     "interval": "step",
-        # }
-        # return [optimizer], [scheduler_config]
-        return optimizer
+        steps_per_epoch = self.trainer.estimated_stepping_batches // self.trainer.max_epochs
+        # following milestones, warmup_iters are arbitrarily chosen
+        first, second = steps_per_epoch * int(self.trainer.max_epochs * 4/6), steps_per_epoch * int(self.trainer.max_epochs * 5/6)
+        warmup_iters = steps_per_epoch * int(self.trainer.max_epochs * 1/6)
+        scheduler = LinearWarmUpMultiStepDecay(optimizer, milestones=[first, second], gamma=1/3, warmup_iters=warmup_iters)
+        scheduler_config = {
+            "scheduler": scheduler,
+            "interval": "step",
+        }
+        return [optimizer], [scheduler_config]
     

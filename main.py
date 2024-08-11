@@ -44,9 +44,9 @@ def main():
     )
 
     model = RotatedFasterRCNN(
-        pretrained=False, 
+        pretrained=True, 
         pretrained_backbone=True,
-        trainable_backbone_layers=3, 
+        trainable_backbone_layers=5, 
         returned_layers=[1,2,3,4],
         freeze_bn=False, 
         lr=0.0001,
@@ -80,7 +80,7 @@ def main():
         accelerator="gpu",
         devices=devices,
         logger=logger,
-        max_epochs=10,
+        max_epochs=36,
         precision="32",
         benchmark=True,
         deterministic=True,
