@@ -1,4 +1,5 @@
 import os
+import platform
 import glob
 from typing import Literal, Optional, Any, Dict, Tuple, Iterable
 from typing_extensions import override 
@@ -15,10 +16,10 @@ from PIL import ImageDraw, ImageFont
 
 try:
     import wandb
-except ImportError as e:
+except ImportError:
     print("Requires wandb, pip install wandb")
 
-if os.name == "nt":
+if platform.system() == "Windows":
     font_dir = os.path.join(os.environ["WINDIR"], "Fonts")
 else:
     font_dir = "/usr/share/fonts/"
