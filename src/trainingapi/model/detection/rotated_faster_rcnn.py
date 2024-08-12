@@ -176,7 +176,7 @@ def builder(
     freeze_bn=False,
     anchor_sizes=((8, 16, 32, 64, 128),) * 5,
     aspect_ratios=((0.5, 1.0, 2.0),) * 5,
-    angles=((0, 60, 120, 180, 240, 300),) * 5,
+    angles=((0, 90, 180, 270),) * 5,
     **kwargs,
 ):
     weights, weights_backbone = get_weights(
@@ -316,12 +316,16 @@ def load_model_weights(model, weights, weights_backbone):
     model_state_dict = model.state_dict()
     for k, tensor in model_state_dict.items():
         trained_tensor = trained_state_dict.get(k, None)
-        if trained_tensor is not None and tensor.shape == trained_tensor.shape:
-            model_state_dict[k] = trained_tensor
+        if trained_tensor is not None:
+            if tensor.shape == trained_tensor.shape:
+                model_state_dict[k] = trained_tensor
+            else:
+                print(
+                    f"[WARN] Skipped loading parameter {k} due to incompatible shapes: required shape is {tensor.shape}"
+                )
         else:
-            print(
-                f"[WARN] Skipped loading parameter {k} due to incompatible shapes: required shape is {tensor.shape}"
-            )
+            print(f"[WARN] Skipped loading parameter {k}, it does not exist in the state_dict")
+            
     model.load_state_dict(model_state_dict, strict=False)
 
 

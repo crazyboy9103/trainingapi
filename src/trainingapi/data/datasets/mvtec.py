@@ -22,8 +22,7 @@ class MVTecDataset(BaseDataset):
         cls_map = {c: i for i, c in enumerate(self.CLASSES)}
         
         ann_files = sorted(glob.glob(ann_folder + '/*.txt'), key=lambda x: x.split("/")[-1].replace(".txt", ""))
-        print(ann_files)
-            
+
         anns = []
         image_id = 0
         for ann_file in tqdm(ann_files, desc="Loading annotations"):
@@ -61,7 +60,6 @@ class MVTecDataset(BaseDataset):
                 
     def load_image_paths(self, image_folder: str) -> List[str]:
         image_paths = sorted(glob.glob(image_folder + "/*.png"), key=lambda x: x.split("/")[-1].replace(".png", ""))
-        print(image_paths)
         return image_paths
 
 if __name__ == "__main__":
@@ -74,4 +72,3 @@ if __name__ == "__main__":
         )
     )
     image, label = train_data[0]
-    # print(train_data[0])  

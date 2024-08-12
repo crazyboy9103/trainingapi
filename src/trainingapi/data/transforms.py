@@ -8,7 +8,7 @@ from torchvision import transforms as T
 from torchvision.transforms import functional as TF
 from torchvision.models.detection.image_list import ImageList
 
-from .preprocess import _resize_oboxes, _flip_oboxes, _resize_image
+from trainingapi.data.preprocess import _resize_oboxes, _flip_oboxes, _resize_image
 
 class RotatedFasterRCNNTransform(nn.Module):
     """

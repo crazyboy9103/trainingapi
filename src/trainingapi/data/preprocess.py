@@ -23,7 +23,7 @@ def _resize_oboxes(oboxes: Tensor, original_size: List[int], new_size: List[int]
     a_adjusted_rad = torch.atan2(sin_a * ratio_height, cos_a * ratio_width)
     # Converting angle back to degrees
     a_adjusted = torch.rad2deg(a_adjusted_rad)
-    a_adjusted = torch.where(a_adjusted < 0, a_adjusted + 360.0, a_adjusted)
+    a_adjusted = a_adjusted % 360.0
 
     cx = cx * ratio_width
     cy = cy * ratio_height

@@ -24,25 +24,18 @@ def encode_oboxes(gt_bboxes: Tensor, bboxes: Tensor, weights: Tensor, epsilon: f
     wa = weights[4]
     
     ex_ctr_x, ex_ctr_y, ex_widths, ex_heights, ex_angles = bboxes.unbind(1)
-    sin_ex_angles, cos_ex_angles = torch.sin(torch.deg2rad(ex_angles)), torch.cos(torch.deg2rad(ex_angles))
+    sin_ex_angles = torch.sin(torch.deg2rad(ex_angles))
+    cos_ex_angles = torch.cos(torch.deg2rad(ex_angles))
         
     gt_ctr_x, gt_ctr_y, gt_widths, gt_heights, gt_angles = gt_bboxes.unbind(1)
-    
-    targets_dx = wx * (gt_ctr_x - ex_ctr_x) / ex_widths
-    targets_dy = wy * (gt_ctr_y - ex_ctr_y) / ex_heights
-    targets_dw = ww * torch.log(gt_widths / ex_widths)
-    targets_dh = wh * torch.log(gt_heights / ex_heights)
-    
-    # We normalize sin and cos to be in [-1, +1] to impose sin^2 + cos^2 = 1 constraint
-    length = torch.sqrt(sin_ex_angles ** 2 + cos_ex_angles ** 2 + epsilon)
-    sin_ex_angles = sin_ex_angles / length
-    cos_ex_angles = cos_ex_angles / length
-
     # With gt_angles, we compute sin and cos 
     sin_gt_angles = torch.sin(torch.deg2rad(gt_angles))
     cos_gt_angles = torch.cos(torch.deg2rad(gt_angles))
 
-    # Then we compute the difference between the two
+    targets_dx = wx * (gt_ctr_x - ex_ctr_x) / ex_widths
+    targets_dy = wy * (gt_ctr_y - ex_ctr_y) / ex_heights
+    targets_dw = ww * torch.log(gt_widths / ex_widths)
+    targets_dh = wh * torch.log(gt_heights / ex_heights)
     targets_sin_da = wa * (sin_gt_angles - sin_ex_angles)
     targets_cos_da = wa * (cos_gt_angles - cos_ex_angles)
 
@@ -85,7 +78,7 @@ def decode_oboxes(pred_bboxes: Tensor, bboxes: Tensor, weights: Tensor, bbox_xfo
     pred_cos_a = pred_cos_a / length
 
     pred_a = torch.rad2deg(torch.atan2(pred_sin_a, pred_cos_a))
-    pred_a = torch.where(pred_a < 0, pred_a + 360.0, pred_a) # make it in [0, 360)
+    pred_a = pred_a % 360.0
     pred_boxes = torch.stack([pred_ctr_x, pred_ctr_y, pred_w, pred_h, pred_a], dim=2).flatten(1)
     return pred_boxes
 

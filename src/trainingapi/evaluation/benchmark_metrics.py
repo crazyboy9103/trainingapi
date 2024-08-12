@@ -39,15 +39,15 @@ class RotatedMeanAveragePrecision(Metric):
         """
         assert len(preds) == len(targets)
         for pred, target in zip(preds, targets):
-            self.pred_boxes.append(pred["oboxes"].detach().cpu())
-            self.pred_labels.append(pred["labels"].detach().cpu())
-            self.pred_scores.append(pred["scores"].detach().cpu())
+            self.pred_boxes.append(pred["oboxes"].detach())#.cpu())
+            self.pred_labels.append(pred["labels"].detach())#.cpu())
+            self.pred_scores.append(pred["scores"].detach())#.cpu())
             
-            self.target_boxes.append(target["oboxes"].detach().cpu())
-            self.target_labels.append(target["labels"].detach().cpu())
+            self.target_boxes.append(target["oboxes"].detach())#.cpu())
+            self.target_labels.append(target["labels"].detach())#.cpu())
     
     def compute(self):
-        classes = torch.unique(torch.cat(self.pred_labels)).numpy()
+        classes = torch.unique(torch.cat(self.pred_labels)).detach().cpu().numpy()
         
         average_metrics = torch.zeros(6)
         metrics_by_iou_threshold = {}
